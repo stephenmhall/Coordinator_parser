@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
             event.ignore()
 
 
+# noinspection PyUnresolvedReferences,PyArgumentList
 class FormWidget(QWidget):
 
     def __init__(self, parent):
@@ -346,15 +347,15 @@ class FormWidget(QWidget):
             issilist.append(self.issiList.currentItem().text())
 
         self.plot_thread = PlotFiles(self.resultDict, issilist, self.openGoogleEarth, gps)
-        self.plot_thread.progressSignal.connect(self.updateProgress)
-        self.plot_thread.threadMessage.connect(self.updateProgress)
+        self.plot_thread.progressSignal.connect(self.updateprogress)
+        self.plot_thread.threadMessage.connect(self.updateprogress)
         self.plot_thread.start()
 
     def stopThread(self):
         self.plot_thread.stop()
         self.statusBar.showMessage('Plot stopped')
 
-    def updateProgress(self, value):
+    def updateprogress(self, value):
 
         if isinstance(value, str):
             self.statusBar.showMessage(value)
