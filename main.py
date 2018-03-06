@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QProgressBar,
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 import csv
-from math import radians, cos, sin, asin, sqrt
+from math import radians, cos, sin, asin, sqrt, degrees, atan2
 import webbrowser
 import ast
 from simplekml import Kml, Snippet, Types
@@ -20,8 +20,9 @@ class PlotFiles(QThread):
     progressSignal = pyqtSignal(int)
     threadMessage = pyqtSignal(str)
 
-    def __init__(self, results, issilist, google):
+    def __init__(self, results, issilist, google, gps):
         QThread.__init__(self)
+        self.gps = gps
         self.results = results
         self.issilist = issilist
         self.google = google
@@ -31,9 +32,11 @@ class PlotFiles(QThread):
     def __del__(self):
         self.wait()
 
-    def plot_the_files(self, results, issi, google):
+    def plot_the_files(self, results, issi, google, gps, firstplot):
         """
         Receives the results and an issi's to plot
+        :param firstplot:
+        :param gps:
         :param google:
         :param results:
         :param issi:
@@ -45,11 +48,16 @@ class PlotFiles(QThread):
         speeds = []
         headings = []
         times = []
+        year = results[issi][0][1][6:10]
+        month = results[issi][0][1][3:5]
+        day = results[issi][0][1][0:2]
+
+        kml = Kml(name="{}_{}-{}-{}".format(issi, year, month, day), open=1)
+        doc = kml.newdocument(name="{}".format(issi),
+                              snippet=Snippet('Created {}-{}-{}'.format(year, month, day)))
+
         for x in range(0, len(results[issi])):
             tup = (results[issi][x][3], results[issi][x][2])
-            year = results[issi][x][1][6:10]
-            month = results[issi][x][1][3:5]
-            day = results[issi][x][1][0:2]
             theTime = results[issi][x][1][11:]
             when.append("{}-{}-{}T{}Z".format(year, month, day, theTime))
             coord.append(tup)
@@ -57,9 +65,31 @@ class PlotFiles(QThread):
             headings.append(int(results[issi][x][5]))
             times.append(results[issi][x][1])
 
-        kml = Kml(name="{}_{}-{}-{}".format(issi, year, month, day), open=1)
-        doc = kml.newdocument(name="{}".format(issi),
-                              snippet=Snippet('Created {}-{}-{}'.format(year, month, day)))
+        # Create circle track
+        if gps[0] != 0 and firstplot:
+
+            R = 6378.1
+            d = float(gps[2])  # distance
+            circle_coords = []
+
+            lat1 = radians(float(gps[0]))
+            lon1 = radians(float(gps[1]))
+
+            for b in range(1, 360):
+                brng = radians(b)
+                lat2 = asin(sin(lat1) * cos(d / R) + cos(lat1) * sin(d / R) * cos(brng))
+                lon2 = lon1 + atan2(sin(brng) * sin(d / R) * cos(lat1), cos(d / R) - sin(lat1) * sin(lat2))
+                lat2 = degrees(lat2)
+                lon2 = degrees(lon2)
+                circle_coords.append((lon2, lat2))
+
+            doc2 = kml.newdocument(name="Search Area",
+                                  snippet=Snippet('{}-{}-{}'.format(gps[0], gps[1], gps[2])))
+            fol2 = doc2.newfolder(name='Search Area')
+            trk2 = fol2.newgxtrack(name='search area')
+            trk2.newgxcoord(circle_coords)
+            trk2.stylemap.normalstyle.linestyle.color = '641400FF'
+            trk2.stylemap.normalstyle.linestyle.width = 6
 
         # Folder
         fol = doc.newfolder(name='Tracks')
@@ -83,11 +113,13 @@ class PlotFiles(QThread):
         trk.extendeddata.schemadata.newgxsimplearraydata('speed', speeds)
         trk.extendeddata.schemadata.newgxsimplearraydata('heading', headings)
 
+
         # Styling
-        trk.stylemap.normalstyle.iconstyle.icon.href = 'http://earth.google.com/images/kml-icons/track-directional/track-0.png'
+        #trk.stylemap.normalstyle.iconstyle.icon.href = 'http://earth.google.com/images/kml-icons/track-directional/track-0.png'
+        trk.stylemap.normalstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/track.png'
         trk.stylemap.normalstyle.linestyle.color = '99ffac59'
         trk.stylemap.normalstyle.linestyle.width = 6
-        trk.stylemap.highlightstyle.iconstyle.icon.href = 'http://earth.google.com/images/kml - icons / track - directional / track - 0.png'
+        trk.stylemap.highlightstyle.iconstyle.icon.href = 'http://maps.google.com/mapfiles/kml/shapes/track.png'
         trk.stylemap.highlightstyle.iconstyle.scale = 1.2
         trk.stylemap.highlightstyle.linestyle.color = '99ffac59'
         trk.stylemap.highlightstyle.linestyle.width = 8
@@ -105,7 +137,7 @@ class PlotFiles(QThread):
 
         for i in range(len(self.issilist)):
             if not self.stopped:
-                self.plot_the_files(self.results, self.issilist[i], self.google)
+                self.plot_the_files(self.results, self.issilist[i], self.google, self.gps, firstplot)
                 update = ((i + 1) / maxPercent) * 100
                 self.progressSignal.emit(update)
 
@@ -146,10 +178,9 @@ class ParseFile(QThread):
     parse_result_dict_signal = pyqtSignal(object)
 
     def __init__(self, filename, start_time, stop_time, distance,
-                 search_lat, search_lon, issi_list, area_switch, issi_switch, file_size, all_route):
+                 search_lat, search_lon, issi_list, area_switch, issi_switch, all_route):
         QThread.__init__(self)
         self.all_route = all_route
-        self.file_size = file_size
         self.issi_switch = issi_switch
         self.area_switch = area_switch
         self.issi_list = issi_list
@@ -171,10 +202,17 @@ class ParseFile(QThread):
             number_of_rows = 0
             update = 0
             #area_search_change
+            update_list = []
             for row in reader:
                 if row[0] != "Node":
+                    update_list.append(row)
+            file_size = len(update_list)
+            distance_list = []
+
+            for row in update_list:
+                if row[0] != "Node":
                     number_of_rows += 1
-                    update = ((number_of_rows + 1) / self.file_size) * 100
+                    update = ((number_of_rows + 1) / file_size) * 100
                     issi = row[0]
                     timestamp = row[2]
                     update_time = datetime.datetime.strptime(timestamp.split(' ')[1], '%H:%M:%S')
@@ -182,24 +220,25 @@ class ParseFile(QThread):
                     lon = -(float(row[8][:3]) + round(float(row[8][3:9]) / 60, 6))
                     speed = row[9]
                     bearing = row[10]
+                    location = row[14]
                     search_distance = 0.0
-
-                    if self.area_switch:
-                        search_distance = is_in_range(self.search_lon, self.search_lat, lon, lat)
 
                     if self.start_time <= update_time <= self.stop_time:
                         if not self.issi_switch or issi in self.issi_list:
-                            if not self.area_switch or search_distance <= self.distance:
-                                result_list = [[issi, timestamp, lat, lon, speed, bearing, search_distance]]
+                            if self.area_switch:
+                                search_distance = is_in_range(self.search_lon, self.search_lat, lon, lat)
+                                if search_distance <= self.distance:
+                                    if issi not in distance_list:
+                                        distance_list.append(issi)
 
-                                if issi not in result_dictionary:
-                                    result_dictionary[issi] = result_list
-                                else:
-                                    result_list = result_dictionary[issi]
-                                    result_list.append([issi, timestamp, lat, lon, speed, bearing, search_distance])
-                                    result_dictionary[issi] = result_list
+                            result = [issi, timestamp, lat, lon, speed, bearing, search_distance, location]
+                            if issi not in result_dictionary:
+                                result_dictionary[issi] = [result]
                             else:
-                                continue
+                                result_list = result_dictionary[issi]
+                                result_list.append(result)
+                                result_dictionary[issi] = result_list
+
                         else:
                             continue
                     else:
@@ -209,11 +248,21 @@ class ParseFile(QThread):
             for key in sorted(result_dictionary.keys()):
                 new_issi_list.append(key)
 
-            self.parse_result_list_signal.emit(new_issi_list)
-            self.parse_result_dict_signal.emit(result_dictionary)
+            if self.area_switch:
+                new_result_dict = {}
+                for i in distance_list:
+                    new_result_dict[i] = result_dictionary[i]
+                self.parse_result_list_signal.emit(distance_list)
+                self.parse_result_dict_signal.emit(new_result_dict)
+                units_found = len(distance_list)
+            else:
+                self.parse_result_list_signal.emit(new_issi_list)
+                units_found = len(new_issi_list)
+                self.parse_result_dict_signal.emit(result_dictionary)
+
             self.parse_progress_signal.emit(100)
             self.parse_message_signal.emit('Searched {} lines and found {} Units'.format(number_of_rows,
-                                                                                         len(result_dictionary.keys())))
+                                                                                         units_found))
 
     def run(self):
         f = open(self.filename, 'r')
@@ -231,7 +280,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.form_widget)
 
         # Window Geometry
-        self.setGeometry(300, 300, 600, 800)
+        self.setGeometry(300, 300, 800, 800)
         self.setWindowTitle('CoOrdinator Parser')
         self.setWindowIcon(QIcon('999.ico'))
 
@@ -253,7 +302,6 @@ class FormWidget(QWidget):
         self.resultDict = {}
         self.fileStartTime = ""
         self.fileStopTime = ""
-        self.file_size = 0
         self.openGoogleEarth = True
 
         self.statusBar = QStatusBar()
@@ -290,7 +338,6 @@ class FormWidget(QWidget):
         self.googleEarthInstalled = QCheckBox('Plot to Google Earth')
         self.googleEarthInstalled.stateChanged.connect(self.googleEarth)
         self.googleEarthInstalled.toggle()
-        self.showCompleteRoutes = QCheckBox('Show Complete Routes')
 
         # List Fields
         self.issiList = QListWidget()
@@ -367,7 +414,6 @@ class FormWidget(QWidget):
         self.hbox8.addWidget(self.progress)
         self.hbox_area_search = QHBoxLayout()
         self.hbox_area_search.addWidget(self.areaSearchSwitch)
-        self.hbox_area_search.addWidget(self.showCompleteRoutes)
         self.hbox_area_search.addStretch(1)
 
 
@@ -396,10 +442,6 @@ class FormWidget(QWidget):
         if save_file[0]:
             with open(save_file[0], 'w') as jsonfile:
                 json.dump(self.resultDict, jsonfile)
-            #     fieldnames = ['issi', 'time', 'lat', 'lon', 'speed', 'heading', 'range']
-            #     writer = csv.DictWriter(csvfile, self.resultDict.keys(), fieldnames=fieldnames)
-            #     writer.writeheader()
-            #     writer.writerow(self.resultDict)
 
     def showOpenFile(self):
         self.issiList.clear()
@@ -415,11 +457,11 @@ class FormWidget(QWidget):
             f = open(fname[0], 'r')
 
             startText = ""
+            row_count = 0
             with f:
                 reader = csv.reader(f)
-                num_rows = 0
                 for row in reader:
-                    num_rows += 1
+                    row_count += 1
                     if row[0] != "Node":
                         if startText == "":
                             startText = row[2]
@@ -430,8 +472,8 @@ class FormWidget(QWidget):
                 self.fileStopTime = endText[11:]
                 self.startTime.setText(self.fileStartTime)
                 self.stopTime.setText(self.fileStopTime)
-        self.file_size = num_rows
-        self.statusBar.showMessage('File Loaded, contains {} lines'.format(self.file_size))
+
+        self.statusBar.showMessage('File Loaded, contains {} lines'.format(row_count))
         self.startParseBtn.setDisabled(False)
         self.resetTimeBtn.setDisabled(False)
 
@@ -469,11 +511,10 @@ class FormWidget(QWidget):
 
         if self.issiSearchSwitch.checkState() == Qt.Checked:
             issilist = self.issi.text().split(';')
-            print(issilist)
 
         self.parse_file = ParseFile(fname, starttime, stoptime,
                                     distance, searchlat, searchlon, issilist,
-                                    area_switch, issi_switch, self.file_size, all_route_switch)
+                                    area_switch, issi_switch, all_route_switch)
         self.parse_file.parse_message_signal.connect(self.parse_update)
         self.parse_file.parse_progress_signal.connect(self.parse_update)
         self.parse_file.parse_result_dict_signal.connect(self.parse_update)
@@ -545,6 +586,9 @@ class FormWidget(QWidget):
         self.stopPlotBtn.setDisabled(False)
         sender = self.sender()
         issilist = []
+        gps = [0]
+        if self.areaSearchSwitch.checkState() == Qt.Checked:
+            gps = [self.lat.text(), self.lon.text(), self.distance.text()]
 
         if sender.text() == "Plot all ISSI's (caution)":
             for key in sorted(self.resultDict.keys()):
@@ -552,7 +596,7 @@ class FormWidget(QWidget):
         else:
             issilist.append(self.issiList.currentItem().text())
 
-        self.plot_thread = PlotFiles(self.resultDict, issilist, self.openGoogleEarth)
+        self.plot_thread = PlotFiles(self.resultDict, issilist, self.openGoogleEarth, gps)
         self.plot_thread.progressSignal.connect(self.updateProgress)
         self.plot_thread.threadMessage.connect(self.updateProgress)
         self.plot_thread.start()
