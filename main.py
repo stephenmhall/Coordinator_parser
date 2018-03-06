@@ -170,6 +170,7 @@ class ParseFile(QThread):
             result_dictionary = {}
             number_of_rows = 0
             update = 0
+            #area_search_change
             for row in reader:
                 if row[0] != "Node":
                     number_of_rows += 1
