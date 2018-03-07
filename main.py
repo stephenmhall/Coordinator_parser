@@ -26,7 +26,6 @@ class MainWindow(QMainWindow):
         self.setGeometry(300, 300, 800, 800)
         self.setWindowTitle('CoOrdinator Parser')
         self.setWindowIcon(QIcon('999.ico'))
-        # change
 
     def closeEvent(self, event):
         reply = QMessageBox.question(self, 'Message',
