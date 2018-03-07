@@ -6,7 +6,6 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QProgressBar,
                              QFrame, QStatusBar)
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
-import csv
 import webbrowser
 import ast
 import datetime
@@ -27,7 +26,6 @@ class MainWindow(QMainWindow):
         self.setGeometry(300, 300, 800, 800)
         self.setWindowTitle('CoOrdinator Parser')
         self.setWindowIcon(QIcon('999.ico'))
-        # making a change for the sake of it.
 
     def closeEvent(self, event):
         reply = QMessageBox.question(self, 'Message',
@@ -46,6 +44,7 @@ class FormWidget(QWidget):
     def __init__(self, parent):
         super(FormWidget, self).__init__(parent)
         self.resultDict = {}
+        self.csvList = []
         self.fileStartTime = ""
         self.fileStopTime = ""
         self.openGoogleEarth = True
@@ -54,7 +53,7 @@ class FormWidget(QWidget):
         self.statusBar.showMessage('Open a CSV File to begin')
 
         # Buttons
-        self.openFileBtn = QPushButton('Open CSV File', self)
+        self.openFileBtn = QPushButton('Open CSV Files', self)
         self.openFileBtn.setToolTip('Open Coordinator formatted CSV files')
         self.openFileBtn.clicked.connect(self.showOpenFile)
         self.startParseBtn = QPushButton('Start Search', self)
@@ -168,7 +167,7 @@ class FormWidget(QWidget):
         self.hbox_area_search.addWidget(self.areaSearchSwitch)
         self.hbox_area_search.addStretch(1)
 
-
+        # Create Vbox
         self.vbox = QVBoxLayout()
         self.vbox.addLayout(self.hbox1)
         self.vbox.addLayout(self.hbox2)
@@ -197,35 +196,54 @@ class FormWidget(QWidget):
                 json.dump(self.resultDict, jsonfile)
 
     def showOpenFile(self):
+        self.csvList = []
         self.issiList.clear()
         self.detailsList.clear()
         self.plotSelectionBtn.setDisabled(True)
         self.saveDataBtn.setDisabled(True)
         self.plotAllBtn.setDisabled(True)
-        fname = QFileDialog.getOpenFileName(self, 'Open Coordinator CSV file',
+        fname = QFileDialog.getOpenFileNames(self, 'Open Coordinator CSV file',
                                             "", "CSV Files (*.csv)")
 
         if fname[0]:
-            self.csvFileName.setText(fname[0])
-            f = open(fname[0], 'r')
 
-            startText = ""
+            start_time_text = ""
+            end_time_text = ""
+            files_text = ""
+            latest_end_time = datetime.datetime.strptime('01/01/1970 00:00:00', '%d/%m/%Y %H:%M:%S')
             row_count = 0
-            with f:
-                reader = csv.reader(f)
-                for row in reader:
-                    row_count += 1
-                    if row[0] != "Node":
-                        if startText == "":
-                            startText = row[2]
-                        else:
-                            endText = row[2]
+            for file_id in range(len(fname[0])):
+                f = open(fname[0][file_id], 'r')
+                print(fname[0][file_id])
+                if files_text != "":
+                    files_text += '; '
+                files_text += (fname[0][file_id]).split('/')[-1]
 
-                self.fileStartTime = startText[11:]
-                self.fileStopTime = endText[11:]
+                with f:
+                    for row in f:
+                        row_count += 1
+                        self.csvList.append(row)
+
+                row = 0
+                for item in self.csvList:
+                    row += 1
+                    update = (row / row_count) * 100
+                    self.progress.setValue(update)
+                    if item.split(',')[0] != "Node":
+                        if start_time_text == "":
+                            start_time_text = item.split(',')[2]
+                        else:
+                            time_text = datetime.datetime.strptime(item.split(',')[2], '%d/%m/%Y %H:%M:%S')
+                            if time_text > latest_end_time:
+                                latest_end_time = time_text
+                                end_time_text = item.split(',')[2]
+
+                self.fileStartTime = start_time_text
+                self.fileStopTime = end_time_text
                 self.startTime.setText(self.fileStartTime)
                 self.stopTime.setText(self.fileStopTime)
 
+        self.csvFileName.setText(files_text)
         self.statusBar.showMessage('File Loaded, contains {} lines'.format(row_count))
         self.startParseBtn.setDisabled(False)
         self.resetTimeBtn.setDisabled(False)
@@ -238,10 +256,9 @@ class FormWidget(QWidget):
         self.progress.setValue(0)
         self.issiList.clear()
         self.detailsList.clear()
-        fname = self.csvFileName.text()
+        #fname = self.csvFileName.text()
         area_switch = False
         issi_switch = False
-        all_route_switch = False
 
         if self.areaSearchSwitch.checkState() == Qt.Checked:
             area_switch = True
@@ -251,8 +268,8 @@ class FormWidget(QWidget):
         distance = 0
         searchlat = 0
         searchlon = 0
-        starttime = datetime.datetime.strptime(self.startTime.text(), '%H:%M:%S')
-        stoptime = datetime.datetime.strptime(self.stopTime.text(), '%H:%M:%S')
+        starttime = datetime.datetime.strptime(self.startTime.text(), '%d/%m/%Y %H:%M:%S')
+        stoptime = datetime.datetime.strptime(self.stopTime.text(), '%d/%m/%Y %H:%M:%S')
         issilist = []
 
         if self.areaSearchSwitch.checkState() == Qt.Checked:
@@ -263,7 +280,7 @@ class FormWidget(QWidget):
         if self.issiSearchSwitch.checkState() == Qt.Checked:
             issilist = self.issi.text().split(';')
 
-        self.parse_file = ParseFile(fname, starttime, stoptime,
+        self.parse_file = ParseFile(self.csvList, starttime, stoptime,
                                     distance, searchlat, searchlon, issilist,
                                     area_switch, issi_switch)
         self.parse_file.parse_message_signal.connect(self.parse_update)
