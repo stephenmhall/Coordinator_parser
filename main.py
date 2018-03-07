@@ -214,7 +214,6 @@ class FormWidget(QWidget):
             row_count = 0
             for file_id in range(len(fname[0])):
                 f = open(fname[0][file_id], 'r')
-                #print(fname[0][file_id])
                 if files_text != "":
                     files_text += '; '
                 files_text += (fname[0][file_id]).split('/')[-1]
@@ -249,14 +248,12 @@ class FormWidget(QWidget):
         self.resetTimeBtn.setDisabled(False)
 
     def parseFile(self):
-        #print("Parsing file")
         self.plotSelectionBtn.setDisabled(True)
         self.saveDataBtn.setDisabled(True)
         self.plotAllBtn.setDisabled(True)
         self.progress.setValue(0)
         self.issiList.clear()
         self.detailsList.clear()
-        #fname = self.csvFileName.text()
         area_switch = False
         issi_switch = False
 
