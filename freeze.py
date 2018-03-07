@@ -20,12 +20,16 @@ if sys.platform == 'win32':
 
 options = {
     'build_exe': {
-        'includes': 'atexit'
+        'includes': ['atexit',
+                     'simplekml'
+        ]
     }
 }
 
 executables = [
-    Executable('main.py', base=base)
+    Executable('main.py', base=base,
+               targetName='Coordinator Search.exe',
+               icon='999.ico')
 ]
 
 setup(name='Coordinator_parser',
