@@ -20,8 +20,13 @@ if sys.platform == 'win32':
 
 options = {
     'build_exe': {
-        'includes': ['atexit',
-                     'simplekml'
+        'includes': ['atexit'
+        ],
+        'include_files': ['results/'
+
+        ],
+        'excludes': [
+            'tkinter'
         ]
     }
 }

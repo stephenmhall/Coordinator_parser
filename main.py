@@ -188,7 +188,7 @@ class FormWidget(QWidget):
         self.setLayout(self.vbox)
 
     def save_data(self):
-        print(self.resultDict)
+        #print(self.resultDict)
         save_file = QFileDialog.getSaveFileName(self, 'Save CSV File',
                                               "ste1.json", "json Files (*.json)")
         if save_file[0]:
@@ -214,7 +214,7 @@ class FormWidget(QWidget):
             row_count = 0
             for file_id in range(len(fname[0])):
                 f = open(fname[0][file_id], 'r')
-                print(fname[0][file_id])
+                #print(fname[0][file_id])
                 if files_text != "":
                     files_text += '; '
                 files_text += (fname[0][file_id]).split('/')[-1]
@@ -249,7 +249,7 @@ class FormWidget(QWidget):
         self.resetTimeBtn.setDisabled(False)
 
     def parseFile(self):
-        print("Parsing file")
+        #print("Parsing file")
         self.plotSelectionBtn.setDisabled(True)
         self.saveDataBtn.setDisabled(True)
         self.plotAllBtn.setDisabled(True)
