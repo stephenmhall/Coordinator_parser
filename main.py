@@ -100,6 +100,7 @@ class FormWidget(QWidget):
         self.starttimeLabel = QLabel('Start Time')
         self.stoptimeLabel = QLabel('Stop Time')
 
+        # Lines
         self.line = QFrame()
         self.line.setFrameShape(QFrame.HLine)
         self.line.setFrameShadow(QFrame.Sunken)
@@ -125,6 +126,10 @@ class FormWidget(QWidget):
         self.distance.setDisabled(True)
         self.issi = QLineEdit()
         self.issi.setDisabled(True)
+        self.includeissi = QLineEdit('677')
+        self.includeissi.setDisabled(True)
+        self.excludeissi = QLineEdit('688')
+        self.excludeissi.setDisabled(True)
 
         # Progress Bar
         self.progress = QProgressBar()
