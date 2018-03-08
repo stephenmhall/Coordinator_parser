@@ -10,8 +10,13 @@ class ParseFile(QThread):
     parse_result_dict_signal = pyqtSignal(object)
 
     def __init__(self, file, start_time, stop_time, distance,
-                 search_lat, search_lon, issi_list, area_switch, issi_switch):
+                 search_lat, search_lon, issi_list, area_switch, issi_switch,
+                 includes, includeslist, excludes, excludeslist):
         QThread.__init__(self)
+        self.excludeslist = excludeslist
+        self.excludes = excludes
+        self.includeslist = includeslist
+        self.includes = includes
         self.issi_switch = issi_switch
         self.area_switch = area_switch
         self.issi_list = issi_list
@@ -49,22 +54,28 @@ class ParseFile(QThread):
                 location = row[14]
                 search_distance = 0.0
 
-                if self.start_time <= update_time <= self.stop_time:
-                    if not self.issi_switch or issi in self.issi_list:
-                        if self.area_switch:
-                            search_distance = self.is_in_range(self.search_lon, self.search_lat, lon, lat)
-                            if search_distance <= self.distance:
-                                if issi not in distance_list:
-                                    distance_list.append(issi)
+                if not self.includes or issi[:3] in self.includeslist or issi[:4] in self.includeslist:
+                    if not self.excludes or issi[:3] not in self.excludeslist and issi[:4] not in self.excludeslist:
+                        if self.start_time <= update_time <= self.stop_time:
+                            if not self.issi_switch or issi in self.issi_list:
+                                if self.area_switch:
+                                    search_distance = self.is_in_range(self.search_lon, self.search_lat, lon, lat)
+                                    if search_distance <= self.distance:
+                                        if issi not in distance_list:
+                                            distance_list.append(issi)
 
-                        result = [issi, timestamp, lat, lon, speed, bearing, search_distance, location]
-                        if issi not in result_dictionary:
-                            result_dictionary[issi] = [result]
+                                result = [issi, timestamp, lat, lon, speed, bearing, search_distance, location]
+                                if issi not in result_dictionary:
+                                    result_dictionary[issi] = [result]
+                                else:
+                                    result_list = result_dictionary[issi]
+                                    result_list.append(result)
+                                    result_dictionary[issi] = result_list
+
+                            else:
+                                continue
                         else:
-                            result_list = result_dictionary[issi]
-                            result_list.append(result)
-                            result_dictionary[issi] = result_list
-
+                            continue
                     else:
                         continue
                 else:

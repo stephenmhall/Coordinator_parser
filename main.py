@@ -1,4 +1,5 @@
 import sys
+import os
 from PyQt5.QtWidgets import (QApplication, QWidget, QProgressBar,
                              QPushButton, QMessageBox, QMainWindow, QFileDialog, QVBoxLayout,
                              QHBoxLayout, QLabel, QLineEdit,
@@ -10,7 +11,7 @@ import webbrowser
 import ast
 import datetime
 import json
-
+import csv
 from parsefile import ParseFile
 from plotfile import PlotFiles
 
@@ -24,7 +25,7 @@ class MainWindow(QMainWindow):
 
         # Window Geometry
         self.setGeometry(300, 300, 800, 800)
-        self.setWindowTitle('CoOrdinator Parser')
+        self.setWindowTitle('CoOrdinator file Searcher By Stephen Hall')
         self.setWindowIcon(QIcon('999.ico'))
 
     def closeEvent(self, event):
@@ -62,7 +63,7 @@ class FormWidget(QWidget):
         self.plotSelectionBtn = QPushButton('Plot Selected ISSI', self)
         self.plotSelectionBtn.clicked.connect(self.onPlotFile)
         self.plotSelectionBtn.setDisabled(True)
-        self.saveDataBtn = QPushButton('Save Search Data as json', self)
+        self.saveDataBtn = QPushButton('Save ISSI Search Data', self)
         self.saveDataBtn.clicked.connect(self.save_data)
         self.saveDataBtn.setDisabled(True)
         self.resetTimeBtn = QPushButton('Reset Times', self)
@@ -74,15 +75,22 @@ class FormWidget(QWidget):
         self.stopPlotBtn = QPushButton('Stop Plot')
         self.stopPlotBtn.clicked.connect(self.stopThread)
         self.stopPlotBtn.setDisabled(True)
+        self.openResultsFolder = QPushButton('Open Results folder')
+        self.openResultsFolder.clicked.connect(self.open_results_folder)
+        self.openResultsFolder.setDisabled(True)
 
         # CheckBoxes
         self.areaSearchSwitch = QCheckBox('Search Area', self)
         self.areaSearchSwitch.stateChanged.connect(self.areaSearch)
-        self.issiSearchSwitch = QCheckBox('search ISSI', self)
+        self.issiSearchSwitch = QCheckBox('search for ISSIs', self)
         self.issiSearchSwitch.stateChanged.connect(self.issiSearch)
         self.googleEarthInstalled = QCheckBox('Plot to Google Earth')
         self.googleEarthInstalled.stateChanged.connect(self.googleEarth)
         self.googleEarthInstalled.toggle()
+        self.includeissiswitch = QCheckBox('Include Range', self)
+        self.includeissiswitch.stateChanged.connect(self.includes)
+        self.excludeissiswitch = QCheckBox('Exclude Range', self)
+        self.excludeissiswitch.stateChanged.connect(self.excludes)
 
         # List Fields
         self.issiList = QListWidget()
@@ -94,11 +102,13 @@ class FormWidget(QWidget):
         self.detailsList.itemDoubleClicked.connect(self.onDetailDoubleClick)
 
         # Labels
-        self.latLabel = QLabel('Latitude')
-        self.lonLabel = QLabel('Longitude')
-        self.distLabel = QLabel('Search Radius')
-        self.starttimeLabel = QLabel('Start Time')
-        self.stoptimeLabel = QLabel('Stop Time')
+        self.latLabel = QLabel('Latitude: ')
+        self.lonLabel = QLabel('Longitude: ')
+        self.distLabel = QLabel('Search Radius (km): ')
+        self.starttimeLabel = QLabel('Start Time: ')
+        self.stoptimeLabel = QLabel('Stop Time: ')
+        self.issilabel = QLabel('ISSI Results')
+        self.detailslabel = QLabel('Details [ISSI, Time, Latitude, Longitude, Speed, Heading, Distance from search, Location]')
 
         # Lines
         self.line = QFrame()
@@ -115,7 +125,7 @@ class FormWidget(QWidget):
         self.line3.setFrameShadow(QFrame.Sunken)
 
         # Text Fields
-        self.csvFileName = QLineEdit()
+        self.csvFileName = QLineEdit('No Files loaded')
         self.startTime = QLineEdit('Start Time')
         self.stopTime = QLineEdit('Stop Time')
         self.lat = QLineEdit('57.148778')
@@ -126,9 +136,11 @@ class FormWidget(QWidget):
         self.distance.setDisabled(True)
         self.issi = QLineEdit()
         self.issi.setDisabled(True)
-        self.includeissi = QLineEdit('677')
+        self.includeissi = QLineEdit('677;6780;6785')
+        self.includeissi.setToolTip('3 or 4 digits separated by ;')
         self.includeissi.setDisabled(True)
-        self.excludeissi = QLineEdit('688')
+        self.excludeissi = QLineEdit('688;666')
+        self.excludeissi.setToolTip('3 or 4 digits separated by ;')
         self.excludeissi.setDisabled(True)
 
         # Progress Bar
@@ -136,69 +148,115 @@ class FormWidget(QWidget):
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
 
-        self.hbox1 = QHBoxLayout()
-        self.hbox1.addWidget(self.openFileBtn, 1)
-        self.hbox1.addWidget(self.csvFileName, 3)
-        self.hbox2 = QHBoxLayout()
-        self.hbox2.addWidget(self.starttimeLabel)
-        self.hbox2.addWidget(self.startTime)
-        self.hbox2.addWidget(self.stoptimeLabel)
-        self.hbox2.addWidget(self.stopTime)
-        self.hbox2.addWidget(self.resetTimeBtn, 2)
-        self.hbox3 = QHBoxLayout()
-        self.hbox3.addWidget(self.latLabel)
-        self.hbox3.addWidget(self.lonLabel)
-        self.hbox3.addWidget(self.distLabel)
-        self.hbox4 = QHBoxLayout()
-        self.hbox4.addWidget(self.lat)
-        self.hbox4.addWidget(self.lon)
-        self.hbox4.addWidget(self.distance)
-        self.hbox5 = QHBoxLayout()
-        self.hbox5.addWidget(self.issiSearchSwitch)
-        self.hbox5.addWidget(self.issi, 1)
-        self.hbox6 = QHBoxLayout()
-        self.hbox6.addStrut(5)
-        self.hbox6.addWidget(self.issiList, 1)
-        self.hbox6.addWidget(self.detailsList, 5)
-        self.hbox7 = QHBoxLayout()
-        self.hbox7.addWidget(self.googleEarthInstalled)
-        self.hbox7.addWidget(self.plotSelectionBtn)
-        self.hbox7.addWidget(self.plotAllBtn)
-        self.hbox7.addWidget(self.saveDataBtn)
-        self.hbox8 = QHBoxLayout()
-        self.hbox8.addWidget(self.stopPlotBtn)
-        self.hbox8.addWidget(self.progress)
-        self.hbox_area_search = QHBoxLayout()
-        self.hbox_area_search.addWidget(self.areaSearchSwitch)
-        self.hbox_area_search.addStretch(1)
+        self.hbox_load_files = QHBoxLayout()
+        self.hbox_load_files.addWidget(self.openFileBtn, 1)
+        self.hbox_load_files.addWidget(self.csvFileName, 5)
+        self.hbox_search_time = QHBoxLayout()
+        self.hbox_times = QHBoxLayout()
+        self.hbox_search_time.addWidget(self.resetTimeBtn, 1)
+        self.hbox_times.addWidget(self.starttimeLabel)
+        self.hbox_times.addWidget(self.startTime)
+        self.hbox_times.addWidget(self.stoptimeLabel)
+        self.hbox_times.addWidget(self.stopTime)
+        self.hbox_times.addStretch(1)
+        self.hbox_search_time.addLayout(self.hbox_times, 5)
+
+        self.hbox_search_area = QHBoxLayout()
+        self.hbox_search_area.addWidget(self.areaSearchSwitch)
+        self.hbox_search_area.addStretch(1)
+        self.hbox_search_area.addWidget(self.latLabel)
+        self.hbox_search_area.addWidget(self.lat)
+        self.hbox_search_area.addWidget(self.lonLabel)
+        self.hbox_search_area.addWidget(self.lon)
+        self.hbox_search_area.addWidget(self.distLabel)
+        self.hbox_search_area.addWidget(self.distance)
+        self.hbox_serach_issi = QHBoxLayout()
+        self.hbox_serach_issi.addWidget(self.issiSearchSwitch)
+        self.hbox_serach_issi.addWidget(self.issi, 1)
+        self.hbox_detail_labels = QHBoxLayout()
+        self.hbox_detail_labels.addWidget(self.issilabel, 1)
+        self.hbox_detail_labels.addWidget(self.detailslabel, 5)
+        self.hbox_results = QHBoxLayout()
+        self.hbox_results.addWidget(self.issiList, 1)
+        self.hbox_results.addWidget(self.detailsList, 5)
+        self.hbox_plot_results = QHBoxLayout()
+        self.hbox_plot_results.addWidget(self.googleEarthInstalled)
+        self.hbox_plot_results.addWidget(self.plotSelectionBtn)
+        self.hbox_plot_results.addWidget(self.plotAllBtn)
+        self.hbox_plot_results.addWidget(self.saveDataBtn)
+        self.hbox_plot_results.addWidget(self.openResultsFolder)
+        self.hbox_progress_bar = QHBoxLayout()
+        self.hbox_progress_bar.addWidget(self.stopPlotBtn)
+        self.hbox_progress_bar.addWidget(self.progress)
+        self.hbox_filters = QHBoxLayout()
+        self.hbox_filters.addWidget(self.includeissiswitch)
+        self.hbox_filters.addWidget(self.includeissi)
+        self.hbox_filters.addWidget(self.excludeissiswitch)
+        self.hbox_filters.addWidget(self.excludeissi)
+
 
         # Create Vbox
         self.vbox = QVBoxLayout()
-        self.vbox.addLayout(self.hbox1)
-        self.vbox.addLayout(self.hbox2)
+        self.vbox.addLayout(self.hbox_load_files)
+        self.vbox.addLayout(self.hbox_search_time)
         self.vbox.addWidget(self.line)
-        self.vbox.addLayout(self.hbox_area_search)
-        self.vbox.addLayout(self.hbox3)
-        self.vbox.addLayout(self.hbox4)
+        self.vbox.addLayout(self.hbox_search_area)
         self.vbox.addWidget(self.line1)
-        self.vbox.addLayout(self.hbox5)
+        self.vbox.addLayout(self.hbox_filters)
+        self.vbox.addLayout(self.hbox_serach_issi)
         self.vbox.addWidget(self.line2)
         self.vbox.addWidget(self.startParseBtn)
-        self.vbox.addLayout(self.hbox6, 1)
-        self.vbox.addLayout(self.hbox7)
-        self.vbox.addLayout(self.hbox8)
+        self.vbox.addLayout(self.hbox_detail_labels)
+        self.vbox.addLayout(self.hbox_results, 1)
+        self.vbox.addLayout(self.hbox_plot_results)
+        self.vbox.addLayout(self.hbox_progress_bar)
         self.vbox.addWidget(self.line3)
         self.vbox.addWidget(self.statusBar)
 
         self.setLayout(self.vbox)
 
+    def open_results_folder(self):
+        filepath = os.path.realpath(__file__)
+        resultpath = filepath.rsplit('\\', 1)[0] + '\\results\\'
+        os.startfile(resultpath)
+
+    def includes(self, state):
+        if state == Qt.Checked:
+            self.includeissi.setDisabled(False)
+        else:
+            self.includeissi.setDisabled(True)
+
+    def excludes(self, state):
+        if state == Qt.Checked:
+            self.excludeissi.setDisabled(False)
+        else:
+            self.excludeissi.setDisabled(True)
+
     def save_data(self):
-        #print(self.resultDict)
-        save_file = QFileDialog.getSaveFileName(self, 'Save CSV File',
-                                              "ste1.json", "json Files (*.json)")
-        if save_file[0]:
+        current = self.issiList.selectedItems()
+        print(current[0].text())
+        save_file = QFileDialog.getSaveFileName(self, 'Save ISSI File',
+                                                "results\\{}".format(current[0].text()),
+                                                "Text Files (*.txt);;json Files (*.json);;csv Files (*.csv)")
+
+        print(save_file)
+        if save_file[1] == 'json Files (*.json)':
             with open(save_file[0], 'w') as jsonfile:
-                json.dump(self.resultDict, jsonfile)
+                json.dump(self.resultDict[current[0].text()], jsonfile)
+
+        if save_file[1] == 'Text Files (*.txt)':
+            with open(save_file[0], 'w') as txtfile:
+                result_list = []
+                for line in self.resultDict[current[0].text()]:
+                    result_list.append('{}\n'.format(line))
+                txtfile.writelines(result_list)
+
+        if save_file[1] == 'csv Files (*.csv)':
+            with open(save_file[0], 'w') as csvfile:
+                fieldnames = ['ISSI', 'Time', 'Latitude', 'Longitute', 'Speed', 'Heading', 'Distance', 'Location']
+                writer = csv.writer(csvfile, lineterminator='\n')
+                writer.writerow(fieldnames)
+                writer.writerows(self.resultDict[current[0].text()])
 
     def showOpenFile(self):
         self.csvList = []
@@ -250,6 +308,7 @@ class FormWidget(QWidget):
         self.csvFileName.setText(files_text)
         self.statusBar.showMessage('File Loaded, contains {} lines'.format(row_count))
         self.startParseBtn.setDisabled(False)
+        self.startParseBtn.setStyleSheet("background-color: lightgreen")
         self.resetTimeBtn.setDisabled(False)
 
     def parseFile(self):
@@ -259,32 +318,37 @@ class FormWidget(QWidget):
         self.progress.setValue(0)
         self.issiList.clear()
         self.detailsList.clear()
-        area_switch = False
-        issi_switch = False
-
-        if self.areaSearchSwitch.checkState() == Qt.Checked:
-            area_switch = True
-        if self.issiSearchSwitch.checkState() == Qt.Checked:
-            issi_switch = True
-
         distance = 0
         searchlat = 0
         searchlon = 0
         starttime = datetime.datetime.strptime(self.startTime.text(), '%d/%m/%Y %H:%M:%S')
         stoptime = datetime.datetime.strptime(self.stopTime.text(), '%d/%m/%Y %H:%M:%S')
         issilist = []
+        includeslist = []
+        excludeslist = []
+        area_switch = False
+        issi_switch = False
+        includes = False
+        excludes = False
 
         if self.areaSearchSwitch.checkState() == Qt.Checked:
+            area_switch = True
             distance = float(self.distance.text())
             searchlat = float(self.lat.text())
             searchlon = float(self.lon.text())
-
         if self.issiSearchSwitch.checkState() == Qt.Checked:
+            issi_switch = True
             issilist = self.issi.text().split(';')
+        if self.includeissiswitch.checkState() == Qt.Checked:
+            includes = True
+            includeslist = self.includeissi.text().split(';')
+        if self.excludeissiswitch.checkState() == Qt.Checked:
+            excludes = True
+            excludeslist = self.excludeissi.text().split(';')
 
-        self.parse_file = ParseFile(self.csvList, starttime, stoptime,
-                                    distance, searchlat, searchlon, issilist,
-                                    area_switch, issi_switch)
+        self.parse_file = ParseFile(self.csvList, starttime, stoptime, distance, searchlat, searchlon, issilist,
+                                    area_switch, issi_switch, includes, includeslist, excludes, excludeslist)
+
         self.parse_file.parse_message_signal.connect(self.parse_update)
         self.parse_file.parse_progress_signal.connect(self.parse_update)
         self.parse_file.parse_result_dict_signal.connect(self.parse_update)
@@ -337,6 +401,7 @@ class FormWidget(QWidget):
         self.plotSelectionBtn.setDisabled(False)
         self.saveDataBtn.setDisabled(False)
         self.plotAllBtn.setDisabled(False)
+        self.openResultsFolder.setDisabled(False)
 
     def onissidoubleclick(self, state):
         currentissi = self.issi.text()
