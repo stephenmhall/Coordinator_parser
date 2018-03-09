@@ -216,8 +216,8 @@ class FormWidget(QWidget):
         self.setLayout(self.vbox)
 
     def open_results_folder(self):
-        filepath = os.path.realpath(__file__)
-        resultpath = filepath.rsplit('\\', 1)[0] + '\\results\\'
+        filepath = os.path.abspath(os.path.dirname(sys.argv[0]))
+        resultpath = filepath + '\\results\\'
         os.startfile(resultpath)
 
     def includes(self, state):
