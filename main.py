@@ -304,12 +304,14 @@ class FormWidget(QWidget):
                 self.fileStopTime = end_time_text
                 self.startTime.setText(self.fileStartTime)
                 self.stopTime.setText(self.fileStopTime)
+                self.csvFileName.setText(files_text)
+                self.statusBar.showMessage('File Loaded, contains {} lines'.format(row_count))
+                self.startParseBtn.setDisabled(False)
+                self.startParseBtn.setStyleSheet("background-color: lightgreen")
+                self.resetTimeBtn.setDisabled(False)
 
-        self.csvFileName.setText(files_text)
-        self.statusBar.showMessage('File Loaded, contains {} lines'.format(row_count))
-        self.startParseBtn.setDisabled(False)
-        self.startParseBtn.setStyleSheet("background-color: lightgreen")
-        self.resetTimeBtn.setDisabled(False)
+        else:
+            pass
 
     def parseFile(self):
         self.plotSelectionBtn.setDisabled(True)
