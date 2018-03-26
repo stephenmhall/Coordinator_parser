@@ -275,6 +275,7 @@ class FormWidget(QWidget):
             files_text = ""
             latest_end_time = datetime.datetime.strptime('01/01/1970 00:00:00', '%d/%m/%Y %H:%M:%S')
             row_count = 0
+            line_fail_count = 0
             for file_id in range(len(fname[0])):
                 f = open(fname[0][file_id], 'r')
                 if files_text != "":
@@ -291,24 +292,32 @@ class FormWidget(QWidget):
                     row += 1
                     update = (row / row_count) * 100
                     self.progress.setValue(update)
-                    if item.split(',')[0] != "Node":
+                    item_list = item.split(',')
+                    if item_list[0] == "Node":
+                        continue
+                    else:
+                        try:
+                            time_text = datetime.datetime.strptime(item_list[2], '%d/%m/%Y %H:%M:%S')
+                        except:
+                            line_fail_count += 1
+                            continue
                         if start_time_text == "":
-                            start_time_text = item.split(',')[2]
+                            start_time_text = item_list[2]
                         else:
-                            time_text = datetime.datetime.strptime(item.split(',')[2], '%d/%m/%Y %H:%M:%S')
                             if time_text > latest_end_time:
                                 latest_end_time = time_text
-                                end_time_text = item.split(',')[2]
+                                end_time_text = item_list[2]
 
                 self.fileStartTime = start_time_text
                 self.fileStopTime = end_time_text
                 self.startTime.setText(self.fileStartTime)
                 self.stopTime.setText(self.fileStopTime)
+
                 self.csvFileName.setText(files_text)
-                self.statusBar.showMessage('File Loaded, contains {} lines'.format(row_count))
+                self.statusBar.showMessage('File Loaded, contains {} lines, with {} bad row(s)'.format(row_count, line_fail_count))
                 self.startParseBtn.setDisabled(False)
-                self.startParseBtn.setStyleSheet("background-color: lightgreen")
                 self.resetTimeBtn.setDisabled(False)
+                print(line_fail_count)
 
         else:
             pass

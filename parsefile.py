@@ -34,6 +34,7 @@ class ParseFile(QThread):
     def parse_file(self, file):
         result_dictionary = {}
         number_of_rows = 0
+        bad_rows = 0
         update = 0
         update_list = []
         file_size = len(file)
@@ -42,43 +43,41 @@ class ParseFile(QThread):
         for row in file:
             row = row.split(',')
             if row[0] != "Node":
-                number_of_rows += 1
-                update = ((number_of_rows + 1) / file_size) * 100
-                issi = row[0]
-                timestamp = row[2]
-                update_time = datetime.datetime.strptime(timestamp, '%d/%m/%Y %H:%M:%S')
-                lat = float("{0:.6f}".format(float(row[7][0:2]) + (float(row[7][2:9])) / 60))
-                lon = -(float(row[8][:3]) + round(float(row[8][3:9]) / 60, 6))
-                speed = row[9]
-                bearing = row[10]
-                location = row[14]
-                search_distance = 0.0
+                try:
+                    number_of_rows += 1
+                    update = ((number_of_rows + 1) / file_size) * 100
+                    issi = row[0]
+                    timestamp = row[2]
+                    update_time = datetime.datetime.strptime(timestamp, '%d/%m/%Y %H:%M:%S')
+                    lat = float("{0:.6f}".format(float(row[7][0:2]) + (float(row[7][2:9])) / 60))
+                    lon = -(float(row[8][:3]) + round(float(row[8][3:9]) / 60, 6))
+                    speed = row[9]
+                    bearing = row[10]
+                    location = row[14]
+                    search_distance = 0.0
 
-                if not self.includes or issi[:3] in self.includeslist or issi[:4] in self.includeslist:
-                    if not self.excludes or issi[:3] not in self.excludeslist and issi[:4] not in self.excludeslist:
-                        if self.start_time <= update_time <= self.stop_time:
-                            if not self.issi_switch or issi in self.issi_list:
-                                if self.area_switch:
-                                    search_distance = self.is_in_range(self.search_lon, self.search_lat, lon, lat)
-                                    if search_distance <= self.distance:
-                                        if issi not in distance_list:
-                                            distance_list.append(issi)
+                    if self.start_time <= update_time <= self.stop_time:
+                        if not self.issi_switch or issi in self.issi_list:
+                            if self.area_switch:
+                                search_distance = self.is_in_range(self.search_lon, self.search_lat, lon, lat)
+                                if search_distance <= self.distance:
+                                    if issi not in distance_list:
+                                        distance_list.append(issi)
 
-                                result = [issi, timestamp, lat, lon, speed, bearing, search_distance, location]
-                                if issi not in result_dictionary:
-                                    result_dictionary[issi] = [result]
-                                else:
-                                    result_list = result_dictionary[issi]
-                                    result_list.append(result)
-                                    result_dictionary[issi] = result_list
-
+                            result = [issi, timestamp, lat, lon, speed, bearing, search_distance, location]
+                            if issi not in result_dictionary:
+                                result_dictionary[issi] = [result]
                             else:
-                                continue
+                                result_list = result_dictionary[issi]
+                                result_list.append(result)
+                                result_dictionary[issi] = result_list
+
                         else:
                             continue
                     else:
                         continue
-                else:
+                except:
+                    bad_rows += 1
                     continue
             self.parse_progress_signal.emit(update)
         new_issi_list = []
@@ -98,8 +97,9 @@ class ParseFile(QThread):
             self.parse_result_dict_signal.emit(result_dictionary)
 
         self.parse_progress_signal.emit(100)
-        self.parse_message_signal.emit('Searched {} lines and found {} Units'.format(number_of_rows,
-                                                                                     units_found))
+        self.parse_message_signal.emit('Searched {} lines and found {} Units, {} bad row(s)'.format(number_of_rows,
+                                                                                                    units_found,
+                                                                                                    bad_rows))
 
     def run(self):
         self.parse_file(self.file)
