@@ -38,7 +38,7 @@ executables = [
 ]
 
 setup(name='Coordinator_parser',
-      version='0.1',
+      version='0.8',
       description='Sample cx_Freeze PyQt5 script',
       options=options,
       executables=executables
